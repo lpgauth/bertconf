@@ -2,12 +2,12 @@
 -include("bertconf.hrl").
 
 -export([
-	start_link/0
+    start_link/0
 ]).
 
 -behaviour(gen_server).
 -export([
-	init/1,
+    init/1,
     handle_call/3,
     handle_cast/2,
     handle_info/2,
@@ -16,8 +16,8 @@
 ]).
 
 -record(state, {
-	fnotify_ref,
-	old_tables = []
+    fnotify_ref,
+    old_tables = []
 }).
 
 %% public
@@ -29,9 +29,9 @@ init([]) ->
     process_flag(trap_exit, true),
     TableOpts = [
         named_table,
-	    public,
-	    {keypos, #tab.name},
-	    {read_concurrency, true},
+        public,
+        {keypos, #tab.name},
+        {read_concurrency, true},
         set
     ],
     ?MODULE = ets:new(?MODULE, TableOpts),
@@ -42,7 +42,7 @@ init([]) ->
     {ok, FnotifyRef} = fnotify:watch(watch_dir(), [create, modify]),
 
     {ok, #state {
-	    fnotify_ref = FnotifyRef
+        fnotify_ref = FnotifyRef
     }}.
 
 handle_call(_Event, _From, State) ->

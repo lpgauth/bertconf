@@ -2,17 +2,17 @@
 -include("bertconf.hrl").
 
 -export([
-	all/1,
-	read/2,
-	start/0,
-	version/1,
-	version/2
+    all/1,
+    read/2,
+    start/0,
+    version/1,
+    version/2
 ]).
 
 -behaviour(application).
 -export([
-	start/2,
-	stop/1
+    start/2,
+    stop/1
 ]).
 
 %% public
@@ -28,8 +28,8 @@ read(NameSpace, Key) ->
     end.
 
 start() ->
-	ok = application:start(fnotify),
-	ok = application:start(bertconf).
+    ok = application:start(fnotify),
+    ok = application:start(bertconf).
 
 -spec version(namespace()) -> version().
 version(NameSpace) -> {vsn, table(NameSpace)}.
