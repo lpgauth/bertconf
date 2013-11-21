@@ -1,14 +1,19 @@
-{application, bertconf,
- [{description, "Read configuration from .bert files and load them in ETS tables"},
+{application, bertconf, [
+  {description, "Read configuration from .bert files and load them in ETS tables"},
   {vsn, "1.0.0"},
-  {modules, [bertconf, bertconf_sup, bertconf_lib, bertconf_bert_loader]},
+  {modules, [
+    bertconf,
+    bertconf_sup,
+    bertconf_lib,
+    bertconf_bert_loader
+  ]},
   {registered, []},
-  {applications, [kernel, stdlib]},
+  {applications, [
+    kernel,
+    stdlib
+  ]},
   {mod, {bertconf, []}},
   {env, [
-    {delay, 5000},
-    {dir, ["."]}
-   ]}
- ]
-}.
-
+    {watch_dir, ["."]}
+  ]}
+]}.
