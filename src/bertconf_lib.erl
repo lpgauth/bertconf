@@ -26,12 +26,18 @@ inspect(Dir) -> inspect(Dir, []).
 
 inspect(Dir, Refs) ->
     Files = find_bert_files(Dir),
-    NewRefs = [begin
-                {ok, Bin} = file:read_file(File),
-                {File, crypto:md5(Bin)}
-               end || File <- Files],
+    NewRefs = [{File, MD5} || {ok, File, MD5} <- [inspect_file(File) || File <- Files]],
     DiffFiles = diff(NewRefs, Refs),
     {DiffFiles, NewRefs}.
+
+inspect_file(File) ->
+    case file:read_file(File) of
+        {ok, Bin} ->
+            {ok, File, crypto:md5(Bin)};
+        {error, Err} ->
+            error_logger:error_msg("Bertconf failed to read ~p with ~p", [File, Err]),
+            {error, Err}
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%% PRIVATE FUNCTIONS %%%

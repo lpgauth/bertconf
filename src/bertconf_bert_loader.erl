@@ -5,7 +5,7 @@
          code_change/3, terminate/2]).
 
 -include("bertconf.hrl").
--record(state, {ref, changes=[], old_tables=[]}).
+-record(state, {ref, changes=[], old_tables=[], reloader=undefined}).
 
 %%% PUBLIC INTERFACE %%%
 start_link() ->
@@ -15,9 +15,7 @@ start_link() ->
 init([]) ->
     process_flag(trap_exit, true),
     ?MODULE = ets:new(?MODULE, [named_table, set, public, {keypos, #tab.name}, {read_concurrency, true}]),
-    {[], Changes} = reload_bert([]),
-    {ok, #state{ref=erlang:start_timer(reload_delay(), self(), reload),
-                changes=Changes}}.
+    {ok, #state{ref=erlang:start_timer(0, self(), reload)}}.
 
 handle_call(_Event, _From, State) ->
     {noreply, State}.
@@ -25,12 +23,20 @@ handle_call(_Event, _From, State) ->
 handle_cast(_Event, State) ->
     {noreply, State}.
 
-handle_info({timeout, Ref, reload}, S=#state{ref=Ref, changes=Chg, old_tables=Old}) ->
-    {OldTables, Changes} = reload_bert(Chg),
+handle_info({timeout, Ref, reload}, S=#state{ref=Ref, changes=Chg, reloader=undefined}) ->
+    Timer = erlang:start_timer(reload_delay(), self(), reload),
+    Reloader = spawn_link(fun () -> reload_bert(Chg) end),
+    {noreply, S#state{ref = Timer, reloader = Reloader}};
+handle_info({timeout, Ref, reload}, S=#state{ref = Ref}) ->
+    %% Trying to reload before previous reload is finished
+    Timer = erlang:start_timer(reload_delay(), self(), reload),
+    {noreply, S#state{ref = Timer}};
+handle_info({reloaded, OldTables, NewChanges}, S=#state{old_tables=Old}) ->
     delete_tables(Old),
-    {noreply, S#state{ref=erlang:start_timer(reload_delay(), self(), reload),
-                      changes=Changes,
-                      old_tables=OldTables}};
+    {noreply, S#state{changes=NewChanges, old_tables=OldTables, reloader=undefined}};
+handle_info({'EXIT', Pid, Reason}, S=#state{reloader=Pid}) when Reason /= normal->
+    error_logger:error_msg("Bertconf crashed while reloading bert files"),
+    {noreply, S#state{reloader=undefined}};
 handle_info(_Event, State) ->
     {noreply, State}.
 
@@ -47,13 +53,26 @@ reload_bert(OldChanges) ->
     Dirs = find_dirs(),
     Changes = [bertconf_lib:inspect(Dir, OldChanges) || Dir <- Dirs],
     Files = lists:append([Changed || {Changed, _Refs} <- Changes]),
-    Terms = [Terms || File <- Files,
-                      {ok, Bin} <- [file:read_file(File)],
-                      {ok, Terms} <- [bertconf_lib:decode(Bin)]],
+    Terms = [Terms || {ok, Terms} <- [reload_bert_file(File) || File <- Files]],
     NewTables = store(merge(lists:sort(lists:flatten(Terms)))),
     OldTables = update_table_index(NewTables),
     NewChanges = lists:append([Refs || {_, Refs} <- Changes]),
-    {OldTables, NewChanges}.
+    ?MODULE ! {reloaded, OldTables, NewChanges}.
+
+reload_bert_file(File) ->
+    case file:read_file(File) of
+        {ok, Bin} ->
+            case bertconf_lib:decode(Bin) of
+                {ok, Terms} -> {ok, Terms};
+                _ ->
+                    error_logger:error_msg("Bertconf failed to decode ~p", [File]),
+                    {error, bertconf_failed_decode}
+            end;
+        {error, Err} ->
+            error_logger:error_msg("Bertconf failed to read ~p with ~p", [File, Err]),
+            {error, Err}
+    end.
+
 
 reload_delay() ->
     case application:get_env(bertconf, delay) of
@@ -78,7 +97,7 @@ store([]) -> [];
 store([[]|Tables]) -> % some file not respecting the format got skipped
     store(Tables);
 store([{NameSpace, Records} | Tables]) ->
-    Tid = ets:new(NameSpace, [set, public, {read_concurrency, true}]),
+    Tid = ets:new(NameSpace, [set, public, {read_concurrency, true}, {heir, whereis(?MODULE), undefined}]),
     ets:insert(Tid, Records),
     [#tab{name=NameSpace, id=Tid} | store(Tables)].
 
