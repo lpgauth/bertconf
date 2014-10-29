@@ -33,7 +33,7 @@ inspect(Dir, Refs) ->
 inspect_file(File) ->
     case file:read_file(File) of
         {ok, Bin} ->
-            {ok, File, crypto:md5(Bin)};
+            {ok, File, crypto:hash(Bin)};
         {error, Err} ->
             error_logger:error_msg("Bertconf failed to read ~p with ~p", [File, Err]),
             {error, Err}
