@@ -20,37 +20,25 @@ stop(_) -> ok.
 %%% PUBLIC INTERFACE %%%
 -spec read(namespace(), Key::term()) -> undefined | {ok, term()}.
 read(NameSpace, Key) ->
-    case table(NameSpace) of
-        undefined -> error(bertconf_undefined_namespace);
-        Table ->
-            case ets:lookup(Table, Key) of
-                [{_Key,Val}] -> {ok, Val};
-                [] -> undefined
-            end
+    case ets:lookup(table(NameSpace), Key) of
+        [{_Key,Val}] -> {ok, Val};
+        [] -> undefined
     end.
 
--spec all(namespace()) -> undefined | list().
+-spec all(namespace()) -> list().
 all(NameSpace) ->
-    case table(NameSpace) of
-        undefined -> undefined;
-        Table ->
-            loop_all({Table, '_', ?MATCH_LIMIT})
-    end.
+    loop_all({table(NameSpace), '_', ?MATCH_LIMIT}).
 
 %% The version is the table id, which should be swapped on
 %% any update. This is a very scary thing to use, but it works
 %% as long as we use it as an opaque data type.
 -spec version(namespace()) -> version().
 version(NameSpace) ->
-    case table(NameSpace) of
-        undefined -> undefined;
-        Table -> {vsn, Table}
-    end.
+    {vsn, table(NameSpace)}.
 
 -spec version(namespace(), version()) -> current | old.
 version(NameSpace, {vsn, Version}) ->
     case table(NameSpace) of
-        undefined -> undefined;
         Version -> current;
         _ -> old
     end.
@@ -59,7 +47,7 @@ version(NameSpace, {vsn, Version}) ->
 table(NameSpace) ->
     case ets:lookup(?TABLE, NameSpace) of
         [#tab{id=Tid}] -> Tid;
-        _ -> undefined
+        _ -> error(bertconf_undefined_namespace)
     end.
 
 loop_all('$end_of_table') ->
