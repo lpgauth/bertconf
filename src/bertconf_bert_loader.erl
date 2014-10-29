@@ -27,7 +27,7 @@ handle_cast(_Event, State) ->
 
 handle_info({timeout, Ref, reload}, S=#state{ref=Ref, changes=Chg, reloader=undefined}) ->
     Timer = erlang:start_timer(reload_delay(), self(), reload),
-    Reloader = spawn_link(fun () -> reload_bert(Chg) end),
+    Reloader = spawn_opt(fun () -> reload_bert(Chg) end, [link, {min_heap_size, 8000000}]),
     {noreply, S#state{ref = Timer, reloader = Reloader}};
 handle_info({timeout, Ref, reload}, S=#state{ref = Ref}) ->
     %% Trying to reload before previous reload is finished
