@@ -9,9 +9,7 @@
 
 %%% PUBLIC INTERFACE %%%
 start_link() ->
-    gen_server:start_link({local,?MODULE}, ?MODULE, [], [{spawn_opt, [
-        {min_heap_size, 8000000}
-    ]}]).
+    gen_server:start_link({local,?MODULE}, ?MODULE, [], []).
 
 %%% GEN_SERVER CALLBACKS %%%
 init([]) ->
