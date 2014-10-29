@@ -10,7 +10,7 @@ decode(Bin) ->
     try validate(binary_to_term(Bin)) of
         Terms -> {ok, Terms}
     catch
-        error:Reason -> {error, Reason}
+        _Error:Reason -> {error, Reason}
     end.
 
 %% accepts a directory and returns the bert files in there, with the
