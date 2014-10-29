@@ -10,7 +10,7 @@ decode(Bin) ->
     try validate(binary_to_term(Bin)) of
         Terms -> {ok, Terms}
     catch
-        throw:Reason -> {error, Reason}
+        error:Reason -> {error, Reason}
     end.
 
 %% accepts a directory and returns the bert files in there, with the
@@ -46,9 +46,9 @@ inspect_file(File) ->
 validate(L = [_|_]) ->
     case validate_namespaces(L) andalso validate_keyval(L) of
         true -> L;
-        false -> throw(bad_config_format)
+        false -> error(bad_config_format)
     end;
-validate(_) -> throw(bad_config_format).
+validate(_) -> error(bad_config_format).
 
 validate_namespaces([]) -> true;
 validate_namespaces([{Ns,_Val}|Rest]) when is_atom(Ns) ->
