@@ -15,7 +15,10 @@ start_link() ->
 init([]) ->
     process_flag(trap_exit, true),
     ?MODULE = ets:new(?MODULE, [named_table, set, public, {keypos, #tab.name}, {read_concurrency, true}]),
-    {ok, #state{ref=erlang:start_timer(0, self(), reload)}}.
+    {Old, Changes} = reload_bert_sync([]),
+    {ok, #state{ref=erlang:start_timer(reload_delay(), self(), reload),
+                changes=Changes,
+                old_tables=Old}}.
 
 handle_call(_Event, _From, State) ->
     {noreply, State}.
@@ -25,7 +28,7 @@ handle_cast(_Event, State) ->
 
 handle_info({timeout, Ref, reload}, S=#state{ref=Ref, changes=Chg, reloader=undefined}) ->
     Timer = erlang:start_timer(reload_delay(), self(), reload),
-    Reloader = spawn_opt(fun () -> reload_bert(Chg) end, [link, {min_heap_size, 8000000}]),
+    Reloader = reload_bert_async(Chg),
     {noreply, S#state{ref = Timer, reloader = Reloader}};
 handle_info({timeout, Ref, reload}, S=#state{ref = Ref}) ->
     %% Trying to reload before previous reload is finished
@@ -49,6 +52,17 @@ terminate(_Reason, _State) ->
 %%%%%%%%%%%%%%%
 %%% PRIVATE %%%
 %%%%%%%%%%%%%%%
+
+reload_bert_async(Chg) ->
+    spawn_opt(fun () -> reload_bert(Chg) end, [link, {min_heap_size, 8000000}]).
+
+reload_bert_sync(Chg) ->
+    reload_bert_async(Chg),
+    receive
+        {reloaded, OldTables, NewChanges} ->
+            {OldTables, NewChanges}
+    end.
+
 reload_bert(OldChanges) ->
     Dirs = find_dirs(),
     Changes = [bertconf_lib:inspect(Dir, OldChanges) || Dir <- Dirs],
