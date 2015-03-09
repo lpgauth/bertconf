@@ -56,7 +56,7 @@ validate_namespaces([{Ns,_Val}|Rest]) when is_atom(Ns) ->
 validate_namespaces(_) -> false.
 
 validate_keyval([]) -> true;
-validate_keyval([{_,L=[_|_]} | Rest]) ->
+validate_keyval([{_,L} | Rest]) when is_list(L) ->
     validate_keyval1(L) andalso validate_keyval(Rest);
 validate_keyval(_) -> false.
 
