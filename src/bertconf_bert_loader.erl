@@ -16,9 +16,11 @@ init([]) ->
     process_flag(trap_exit, true),
     ?MODULE = ets:new(?MODULE, [named_table, set, public, {keypos, #tab.name}, {read_concurrency, true}]),
     {Old, Changes} = reload_bert_sync([]),
-    {ok, #state{ref=erlang:start_timer(reload_delay(), self(), reload),
-                changes=Changes,
-                old_tables=Old}}.
+    {ok,
+     #state{ref=erlang:start_timer(reload_delay(), self(), reload),
+            changes=Changes,
+            old_tables=Old},
+     hibernate}.
 
 handle_call(_Event, _From, State) ->
     {noreply, State}.
@@ -29,11 +31,11 @@ handle_cast(_Event, State) ->
 handle_info({timeout, Ref, reload}, S=#state{ref=Ref, changes=Chg, reloader=undefined}) ->
     Timer = erlang:start_timer(reload_delay(), self(), reload),
     Reloader = reload_bert_async(Chg),
-    {noreply, S#state{ref = Timer, reloader = Reloader}};
+    {noreply, S#state{ref = Timer, reloader = Reloader}, hibernate};
 handle_info({timeout, Ref, reload}, S=#state{ref = Ref}) ->
     %% Trying to reload before previous reload is finished
     Timer = erlang:start_timer(reload_delay(), self(), reload),
-    {noreply, S#state{ref = Timer}};
+    {noreply, S#state{ref = Timer}, hibernate};
 handle_info({reloaded, OldTables, NewChanges}, S=#state{old_tables=Old}) ->
     delete_tables(Old),
     {noreply, S#state{changes=NewChanges, old_tables=OldTables, reloader=undefined}};
@@ -41,7 +43,7 @@ handle_info({'EXIT', Pid, Reason}, S=#state{reloader=Pid}) when Reason /= normal
     error_logger:error_msg("Bertconf crashed while reloading bert files"),
     {noreply, S#state{reloader=undefined}};
 handle_info(_Event, State) ->
-    {noreply, State}.
+    {noreply, State, hibernate}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
