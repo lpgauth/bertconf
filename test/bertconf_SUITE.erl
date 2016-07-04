@@ -66,6 +66,7 @@ table_version(Config) ->
     [{format,L},{placement,_}] = lists:sort(binary_to_term(Bin)),
     NewList = [{format, [{custom_test_entry, now()}|L]}, {newtable, [{a,b}]}],
     file:write_file(File, term_to_binary(NewList)),
+    lib_SUITE:bump_time(File),
 
     %% wait for reload
     timer:sleep(950),

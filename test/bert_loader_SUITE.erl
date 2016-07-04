@@ -60,7 +60,7 @@ not_bert_ignored(_Config) ->
  % - central config lookup table. When swapping two tables, keep one of them
  %   running in the background, a bit like Erlang's module purge system.
  %   make it read_optimized and commit all writes at once.
-observe_changes(Config) -> 
+observe_changes(Config) ->
     [#tab{id=Placement}] = ets:lookup(?TABLE, placement),
     [#tab{id=Format1}] = ets:lookup(?TABLE, format),
     [] = ets:lookup(Format1, custom_test_entry),
@@ -72,6 +72,7 @@ observe_changes(Config) ->
     [{placement,_}, {format, L}] = binary_to_term(Bin),
     NewList = [{format, [{custom_test_entry, 1}|L]}, {newtable, [{a,b}]}],
     file:write_file(File, term_to_binary(NewList)),
+    lib_SUITE:bump_time(File),
     %% wait for reload
     timer:sleep(750),
     [#tab{id=Format2}] = ets:lookup(?TABLE, format),
