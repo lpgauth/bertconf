@@ -1,7 +1,21 @@
 language: erlang
 otp_release:
   - 18.3
-script: ./rebar co ct
+script:
+  - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
+  - ./rebar3 compile
+  - ./rebar3 dialyzer
+  - ./rebar3 ct
+dist: trusty
+sudo: required
+group: edge
 notifications:
+  email: false
   slack:
     secure: X5X5PLEFhbmZx2RvLN7cpMCi8vMMasNyrIQ0EohvOYob+TtWXbMgaHlysih9GwcNmUAfFOAG3/+pKL7+8wBdtmLGI5Ru2v6bu1/6SjarQ5tFc5zs8BbAiSALaCcv/xsHK1T69B7DZQByl4UK7+EeJd4FXruMbu4ZJLLLfpGGKPZ1aJgnbayrMRBW2EGp+Q4cX0wLCIHswUxbuxqd6K1kvunOJprCkb+N/IIN0T8FMBtiAn5la7fdTFJDvLqKFSd/bd3CSXc4W8XwfDRnjT9JIUB1qVSMgJC7Pwb+bU8+nJCDsyU9tivpvWvgNRH4sL6HRYgUaHUYG8P8IkLv5DE4+TRhi1/YPl+h1uafSvXJN28taTFQ0uSmLLZ3nK3h3lZqJV2/3Uwfg2WRwq/y0IUskDRFKsV7fFytzKagl8+pbXm7XKhQwgvF2QQc8JO5QPFs0Djxh40GuaurXe+rmuBhhEdHhjERLM1aAE3uYe+e7yMTXFTXSqlQNi9etjp9c6TtxwXhT5RviDVl/HmxtgC/4xNt8h28Amm3u3hj4o6psSZICMx4qSV021GIAskUHhd4j4OXfesxh3yt/pN8aOUuAxgM0ZMNFdWHdDdD9oyJMPkwI8Hv4RpwAm8hGT0IY8w9EIbwBBW8uvzNSEqMmXS2zZWczZxcZSrInaOZ99b8I+A=
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-5
