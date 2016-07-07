@@ -83,6 +83,8 @@ observe_changes(Config) ->
     %% on the first reload
     [#tab{id=Placement}] = ets:lookup(?TABLE, placement),
     [_|_] = ets:info(Format1),
-    %% wait for reload
+    %% force a reload
+    file:write_file(File, term_to_binary(NewList)),
+    lib_SUITE:bump_time(File),
     timer:sleep(750),
     undefined = ets:info(Format1).

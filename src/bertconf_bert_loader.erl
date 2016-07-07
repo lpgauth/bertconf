@@ -5,7 +5,7 @@
          code_change/3, terminate/2]).
 
 -include("bertconf.hrl").
--record(state, {ref, changes=[], old_tables=[], reloader=undefined}).
+-record(state, {watches, changes=[], old_tables=[], reloader=undefined}).
 
 %%% PUBLIC INTERFACE %%%
 start_link() ->
@@ -17,7 +17,10 @@ init([]) ->
     ?MODULE = ets:new(?MODULE, [named_table, set, public, {keypos, #tab.name}, {read_concurrency, true}]),
     {Old, Changes} = reload_bert_sync([]),
     {ok,
-     #state{ref=erlang:start_timer(reload_delay(), self(), reload),
+     #state{watches=[begin
+                         {ok,Pid} = dirwatch:start(self(), P, reload_delay()),
+                         Pid
+                     end || P <- find_dirs()],
             changes=Changes,
             old_tables=Old},
      hibernate}.
@@ -28,27 +31,26 @@ handle_call(_Event, _From, State) ->
 handle_cast(_Event, State) ->
     {noreply, State}.
 
-handle_info({timeout, Ref, reload}, S=#state{ref=Ref, changes=Chg, reloader=undefined}) ->
-    Timer = erlang:start_timer(reload_delay(), self(), reload),
-    Reloader = reload_bert_async(Chg),
-    {noreply, S#state{ref = Timer, reloader = Reloader}, hibernate};
-handle_info({timeout, Ref, reload}, S=#state{ref = Ref}) ->
+handle_info({dirwatch, _Pid, changed}, S=#state{changes=Chg, reloader=undefined}) ->
+    {noreply, S#state{reloader = reload_bert_async(Chg)}, hibernate};
+handle_info({dirwatch, _Pid, changed}, S=#state{reloader=R}) ->
     %% Trying to reload before previous reload is finished
-    Timer = erlang:start_timer(reload_delay(), self(), reload),
-    {noreply, S#state{ref = Timer}, hibernate};
+    R ! needs_reload,
+    {noreply, S, hibernate};
 handle_info({reloaded, OldTables, NewChanges}, S=#state{old_tables=Old}) ->
     delete_tables(Old),
-    {noreply, S#state{changes=NewChanges, old_tables=OldTables, reloader=undefined}};
+    {noreply, S#state{changes=NewChanges, old_tables=OldTables, reloader=undefined}, hibernate};
 handle_info({'EXIT', Pid, Reason}, S=#state{reloader=Pid}) when Reason /= normal->
     error_logger:error_msg("Bertconf crashed while reloading bert files"),
-    {noreply, S#state{reloader=undefined}};
+    {noreply, S#state{reloader=undefined}, hibernate};
 handle_info(_Event, State) ->
     {noreply, State, hibernate}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{watches=Ws}) ->
+    [dirwatch:stop(W) || W <- Ws],
     ok.
 
 %%%%%%%%%%%%%%%
@@ -73,6 +75,10 @@ reload_bert(OldChanges) ->
     NewTables = store(merge(lists:sort(lists:flatten(Terms)))),
     OldTables = update_table_index(NewTables),
     NewChanges = lists:append([Refs || {_, Refs} <- Changes]),
+    receive needs_reload ->
+            reload_bert(Changes)
+    after 0 -> ok
+    end,
     ?MODULE ! {reloaded, OldTables, NewChanges}.
 
 reload_bert_file(File) ->
