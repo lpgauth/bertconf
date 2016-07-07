@@ -64,7 +64,7 @@ table_version(Config) ->
     File = filename:join(Dir, "rtb_state.bert"),
     {ok, Bin} = file:read_file(File),
     [{format,L},{placement,_}] = lists:sort(binary_to_term(Bin)),
-    NewList = [{format, [{custom_test_entry, now()}|L]}, {newtable, [{a,b}]}],
+    NewList = [{format, [{custom_test_entry, os:timestamp()}|L]}, {newtable, [{a,b}]}],
     file:write_file(File, term_to_binary(NewList)),
     lib_SUITE:bump_time(File),
 
