@@ -1,6 +1,8 @@
 -module(bertconf_lib).
 -export([decode/1, find_bert_files/1, inspect/1, inspect/2]).
 
+-include_lib("kernel/include/file.hrl").        % for #file_info
+
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% PUBLIC INTERFACE %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
@@ -20,24 +22,25 @@ find_bert_files(Directory) ->
     [filename:join(Directory, Name) || Name <- Files,
         ".bert" =:= filename:extension(Name)].
 
+
+-spec change_time_of(file:name_all()) -> file:date_time() | undefined.
+
+change_time_of(File) ->
+    case file:read_file_info(File, [raw, {time,posix}]) of
+        {ok, #file_info{mtime = M}} -> M;
+        _ -> undefined
+    end.
+
+
 %% Finds bert files that changed in a given directory. Works with a list of
 %% hashes based on the content of all files.
 inspect(Dir) -> inspect(Dir, []).
 
 inspect(Dir, Refs) ->
     Files = find_bert_files(Dir),
-    NewRefs = [{File, MD5} || {ok, File, MD5} <- [inspect_file(File) || File <- Files]],
+    NewRefs = [{File, change_time_of(File)} || File <- Files],
     DiffFiles = diff(NewRefs, Refs),
     {DiffFiles, NewRefs}.
-
-inspect_file(File) ->
-    case file:read_file(File) of
-        {ok, Bin} ->
-            {ok, File, crypto:hash(md5, Bin)};
-        {error, Err} ->
-            error_logger:error_msg("Bertconf failed to read ~p with ~p", [File, Err]),
-            {error, Err}
-    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%% PRIVATE FUNCTIONS %%%
@@ -66,8 +69,9 @@ validate_keyval1(_) -> false.
 
 %diff(NewRefs, Refs) ->
 diff([], _Refs) -> [];
+diff([{_File, undefined} | Rest], Refs) -> diff(Rest, Refs);
 diff([{File, Ref} | Rest], Refs) ->
-    case lists:keyfind(Ref, 2, Refs) of
-        false -> [File | diff(Rest, Refs)];
-        _ -> diff(Rest, Refs)
+    case lists:keyfind(File, 1, Refs) of
+        {File, OldRef} when OldRef == Ref -> diff(Rest, Refs);
+        _ -> [File | diff(Rest, Refs)]
     end.
