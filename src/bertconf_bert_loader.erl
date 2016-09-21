@@ -75,11 +75,45 @@ reload_bert(OldChanges) ->
     NewTables = store(merge(lists:sort(lists:flatten(Terms)))),
     OldTables = update_table_index(NewTables),
     NewChanges = lists:append([Refs || {_, Refs} <- Changes]),
-    receive needs_reload ->
-            reload_bert(Changes)
-    after 0 -> ok
-    end,
-    ?MODULE ! {reloaded, OldTables, NewChanges}.
+
+    %% There's a race condition that can occur if we're doing multiple
+    %% nested reload (the reload process receives a needs_reload message).
+    %%
+    %% The issue is that bertconf:read first reads the current table
+    %% for a namespace then looksup a key in that table which means
+    %% that if the table is deleted between these two calls, the
+    %% second lookup with trigger an error.
+    %%
+    %% This code tries to avoid that by introducing a grace period
+    %% where old tables are kept around until the next reload which
+    %% would normally happen on the configure periodic timer. That
+    %% being said, if one table takes too long to load and we end up
+    %% executing multiple nested reloads (has been known to happen)
+    %% then no grace periods are introduced and we may end up deleting
+    %% the table that is currently being read.
+    ?MODULE ! {reloaded, OldTables, NewChanges},
+
+    %% This MUST be tail-recursive otherwise we could end up with
+    %% multiple versions of large bertconf tables loaded in memory
+    %% which can easily trigger out-of-memory errors.
+    case reload_more() of
+        reload -> reload_bert(Changes);
+        stop -> ok
+    end.
+
+reload_more() ->
+    reload_more(stop).
+
+%% dequeue all the pending messages to avoid doing a bunch of
+%% pointless reloads (has been observed in prod).
+reload_more(Result) ->
+    receive
+        needs_reload -> reload_more(reload)
+    after
+        0 -> Result
+    end.
+
+
 
 reload_bert_file(File) ->
     case file:read_file(File) of
