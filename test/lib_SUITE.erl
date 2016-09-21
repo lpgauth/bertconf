@@ -7,7 +7,7 @@
 -export([all/0, init_per_suite/1, end_per_suite/1,
          init_per_testcase/2, end_per_testcase/2]).
 
--export([check_format/1, find_bert/1, inspect_changes/1]).
+-export([check_format/1, find_bert/1, inspect_changes/1, bump_time/1]).
 
 all() -> [check_format, find_bert, inspect_changes].
 
@@ -80,4 +80,11 @@ inspect_changes(Config) ->
 modify_dir(Dir) ->
     [H|_] = bertconf_lib:find_bert_files(Dir),
     file:write_file(H, term_to_binary(gotcha)),
+    bump_time(H),
     ok.
+
+-include_lib("kernel/include/file.hrl").
+
+bump_time(F) ->
+    {ok, #file_info{mtime=T}} = file:read_file_info(F, [raw, {time,posix}]),
+    file:write_file_info(F, #file_info{mtime=1+T}, [raw, {time,posix}]).

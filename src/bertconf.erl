@@ -7,7 +7,7 @@
 -include("bertconf.hrl").
 
 -type namespace() :: term().
--opaque version() :: {vsn,term()}.
+-type version() :: {vsn,term()}.
 -export_types([namespace/0, version/0]).
 
 %%% APPLICATION CALLBACKS %%%
@@ -33,19 +33,22 @@ all(NameSpace) ->
 %% any update. This is a very scary thing to use, but it works
 %% as long as we use it as an opaque data type.
 -spec version(namespace()) -> version().
-version(NameSpace) -> {vsn, table(NameSpace)}.
+version(NameSpace) ->
+    {vsn, table(NameSpace)}.
 
 -spec version(namespace(), version()) -> current | old.
 version(NameSpace, {vsn, Version}) ->
-    case {table(NameSpace), Version} of
-        {X,X} -> current;
+    case table(NameSpace) of
+        Version -> current;
         _ -> old
     end.
 
 %%% PRIVATE
 table(NameSpace) ->
-    [#tab{id=Tid}] = ets:lookup(?TABLE, NameSpace),
-    Tid.
+    case ets:lookup(?TABLE, NameSpace) of
+        [#tab{id=Tid}] -> Tid;
+        _ -> error(bertconf_undefined_namespace)
+    end.
 
 loop_all('$end_of_table') ->
     [];
